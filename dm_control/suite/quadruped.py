@@ -98,6 +98,33 @@ def make_model(floor_size=None, terrain=False, rangefinders=False,
   return etree.tostring(mjcf, pretty_print=True)
 
 
+def make_maze_model(num_walls):
+  xml_string = common.read_model('quadruped.xml')
+  parser = etree.XMLParser(remove_blank_text=True)
+  mjcf = etree.XML(xml_string, parser)
+
+  floor_geom = mjcf.find('.//geom[@name={!r}]'.format('floor'))
+  floor_geom.attrib['size'] = '{} {} .5'.format(5, 5)
+
+  # Remove ball.
+  ball_body = xml_tools.find_element(mjcf, 'body', 'ball')
+  ball_body.getparent().remove(ball_body)
+
+    # Remove target.
+  #target_site = xml_tools.find_element(mjcf, 'site', 'target')
+  #target_site.attrib['pos'] = '12 12 .05'
+    
+  terrain_geom = xml_tools.find_element(mjcf, 'geom', 'terrain')
+  terrain_geom.getparent().remove(terrain_geom)
+
+  rangefinder_sensors = mjcf.findall( './/rangefinder')
+  for rf in rangefinder_sensors:
+    rf.getparent().remove(rf)
+
+  return etree.tostring(mjcf, pretty_print=True)
+    
+
+
 @SUITE.add()
 def walk(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   """Returns the Walk task."""
@@ -145,6 +172,23 @@ def fetch(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
   return control.Environment(physics, task, time_limit=time_limit,
                              control_timestep=_CONTROL_TIMESTEP,
                              **environment_kwargs)
+
+
+def reach(num_walls, time_limit, random, environment_kwargs):
+  """Returns the Reach task."""
+  xml_string = make_maze_model(num_walls=num_walls)
+  physics = Physics.from_xml_string(xml_string, common.ASSETS)
+  task = Reach(random=random)
+  environment_kwargs = environment_kwargs or {}
+  return control.Environment(physics, task, time_limit=time_limit,
+                             control_timestep=_CONTROL_TIMESTEP,
+                             **environment_kwargs)
+
+
+
+@SUITE.add()
+def reach_0_walls(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    return reach(num_walls=0, time_limit=time_limit, random=random, environment_kwargs=environment_kwargs)
 
 
 class Physics(mujoco.Physics):
@@ -242,6 +286,12 @@ class Physics(mujoco.Physics):
     ball_to_target = (self.named.data.site_xpos['target'] -
                       self.named.data.xpos['ball'])
     return np.linalg.norm(ball_to_target[:2])
+
+  def self_to_target_distance(self):
+    """Returns horizontal distance from the quadruped workspace to the target."""
+    self_to_target = (self.named.data.site_xpos['workspace'] -
+                      self.named.data.site_xpos['target'])
+    return np.linalg.norm(self_to_target[:2])
 
   def self_to_ball_distance(self):
     """Returns horizontal distance from the quadruped workspace to the ball."""
@@ -350,6 +400,45 @@ class Move(base.Task):
         sigmoid='linear')
 
     return _upright_reward(physics) * move_reward
+
+
+class Reach(base.Task):
+  """A quadruped task solved by reaching a target destination."""
+
+  def __init__(self, random=None):
+    super(Reach, self).__init__(random=random)
+
+  def initialize_episode(self, physics):
+    """Sets the state of the environment at the start of each episode.
+
+    Args:
+      physics: An instance of `Physics`.
+
+    """
+    # Initial configuration.
+    azimuth = self.random.uniform(0, 2*np.pi)
+    orientation = np.array((np.cos(azimuth/2), 0, 0, np.sin(azimuth/2)))
+    spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
+    x_pos, y_pos = self.random.uniform(-spawn_radius, spawn_radius, size=(2,))
+    _find_non_contacting_height(physics, orientation, x_pos, y_pos)
+    super(Reach, self).initialize_episode(physics)
+
+  def get_observation(self, physics):
+    """Returns an observation to the agent."""
+    return _common_observations(physics)
+
+  def get_reward(self, physics):
+    """Returns a reward to the agent."""
+    area_max_distance = physics.named.model.geom_size['floor', 0] * np.sqrt(2)
+    workspace_radius = physics.named.model.site_size['workspace', 0]
+    target_radius = physics.named.model.site_size['target', 0]
+    reach_reward = rewards.tolerance(
+        physics.self_to_target_distance(),
+        bounds=(0, workspace_radius + target_radius),
+        sigmoid='linear',
+        margin=area_max_distance, value_at_margin=0)
+
+    return _upright_reward(physics) * reach_reward
 
 
 class Escape(base.Task):

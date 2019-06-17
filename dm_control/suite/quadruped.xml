@@ -84,6 +84,8 @@
     <geom name="terrain" type="hfield" hfield="terrain" rgba=".2 .3 .4 1" pos="0 0 -.01"/>
 
     <camera name="global"  pos="-10 10 10" xyaxes="-1 -1 0 1 0 1" mode="trackcom"/>
+    <camera name="fixed" pos="0 0 40" quat="1 0 0 0"/>
+
     <body name="torso" childclass="body" pos="0 0 .57">
       <freejoint name="root"/>
 
