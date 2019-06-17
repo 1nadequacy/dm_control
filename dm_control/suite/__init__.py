@@ -26,6 +26,7 @@ import itertools
 from dm_control.rl import control
 
 from dm_control.suite import acrobot
+from dm_control.suite import ant
 from dm_control.suite import ball_in_cup
 from dm_control.suite import cartpole
 from dm_control.suite import cheetah
