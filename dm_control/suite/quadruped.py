@@ -103,8 +103,8 @@ def make_maze_model(num_walls):
   parser = etree.XMLParser(remove_blank_text=True)
   mjcf = etree.XML(xml_string, parser)
 
-  floor_geom = mjcf.find('.//geom[@name={!r}]'.format('floor'))
-  floor_geom.attrib['size'] = '{} {} .5'.format(5, 5)
+  #floor_geom = mjcf.find('.//geom[@name={!r}]'.format('floor'))
+  #floor_geom.attrib['size'] = '{} {} .5'.format(5, 5)
 
   # Remove ball.
   ball_body = xml_tools.find_element(mjcf, 'body', 'ball')
@@ -417,9 +417,9 @@ class Reach(base.Task):
     """
     # Initial configuration.
     azimuth = self.random.uniform(0, 2*np.pi)
-    orientation = np.array((np.cos(azimuth/2), 0, 0, np.sin(azimuth/2)))
+    orientation = np.array((0, 0, 0, 0))
     spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
-    x_pos, y_pos = self.random.uniform(-spawn_radius, spawn_radius, size=(2,))
+    x_pos, y_pos = -12, -12
     _find_non_contacting_height(physics, orientation, x_pos, y_pos)
     super(Reach, self).initialize_episode(physics)
 
