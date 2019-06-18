@@ -2,36 +2,37 @@
     <include file="./common/skybox.xml"/>
     <include file="./common/visual.xml"/>
     <include file="./common/materials.xml"/>
-    
     <compiler inertiafromgeom="true" angle="degree" coordinate="local" />
-    <option timestep="0.02" integrator="RK4" />
-    
+    <option timestep="0.02" integrator="RK4"/>
     <default>
         <joint limited="true" armature="1" damping="1" />
         <geom condim="3" conaffinity="0" margin="0.01" friction="1 0.5 0.5" solref=".02 1" solimp=".8 .8 .01" density="5.0" material="self" />
         <default class="wall">
-            <geom type="plane" material="decoration"/>
+            <geom type="box" material="decoration"/>
         </default>
     </default>
-    
     <worldbody>
-        
+        <camera name="global"  pos="-10 10 10" xyaxes="-1 -1 0 1 0 1" mode="trackcom"/>
         <camera name="fixed" pos="0 0 40" quat="1 0 0 0"/>
-        
         <geom name="floor" material="grid" pos="0 0 0" size="15 15 .5" type="plane" conaffinity="1" condim="3" />
-        <geom name="wall_px" class="wall" pos="-15.7 0 .7" zaxis="1 0 1"  size="1 15 .5"/>
-        <geom name="wall_py" class="wall" pos="0 -15.7 .7" zaxis="0 1 1"  size="15 1 .5"/>
-        <geom name="wall_nx" class="wall" pos="15.7 0 .7" zaxis="-1 0 1"  size="1 15 .5"/>
-        <geom name="wall_ny" class="wall" pos="0 15.7 .7" zaxis="0 -1 1"  size="15 1 .5"/>
-        
-        <site name="target" type="cylinder" size=".4 .06" pos="0 0 .05" material="target"/>
-        
+        <geom name="wall_px" class="wall" pos="-15.5 0 .7" zaxis="1 0 0"  size="1 16 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_py" class="wall" pos="0 -15.5 .7" zaxis="0 1 0"  size="16 1 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_nx" class="wall" pos="15.5 0 .7" zaxis="-1 0 0"  size="1 16 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_ny" class="wall" pos="0 15.5 .7" zaxis="0 -1 0"  size="16 1 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_tpy" class="wall" pos="14 0  .7" zaxis="0 1 0"  size="2 1 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_tny" class="wall" pos="-14 0 .7" zaxis="0 -1 0"  size="2 1 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_tpx" class="wall" pos="0 14  .7" zaxis="1 0 0"  size="1 2 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_tnx" class="wall" pos="0 -14 .7" zaxis="-1 0 0"  size="1 2 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_center_x" class="wall" pos="0 0 .7" zaxis="1 0 0"  size="0.5 5 .5" conaffinity="1" condim="3"/>
+        <geom name="wall_center_y" class="wall" pos="0 0 .7" zaxis="0 1 0"  size="5 0.5 .5" conaffinity="1" condim="3"/>
+        <site name="target" type="cylinder" size=".4 .06" pos="12 12 .05" material="target"/>
         <body name="torso" pos="-10 -10 0.75">
             <geom name="torso_geom" type="sphere" size="0.25" pos="0 0 0" />
             <joint name="root" type="free" limited="false" pos="0 0 0" axis="0 0 1" margin="0.01" armature="0" damping="0" />
             <camera name="egocentric"  pos=".3 0 .11" xyaxes="0 -1 0 .4 0 1" fovy="60"/>
+            <camera name="x"  pos="-1.7 0 1" xyaxes="0 -1 0 .75 0 1" mode="trackcom"/>
+            <camera name="y"  pos="0 4 2" xyaxes="-1 0 0 0 -.5 1" mode="trackcom"/>
             <light name="light" pos="0 0 4" mode="trackcom"/>
-            
             <body name="front_left_leg" pos="0 0 0">
                 <geom name="aux_1_geom" type="capsule" size="0.08" fromto="0.0 0.0 0.0 0.2 0.2 0.0" />
                 <body name="aux_1" pos="0.2 0.2 0">
@@ -78,7 +79,6 @@
             </body>
         </body>
     </worldbody>
-    
     <actuator>
         <motor joint="hip_4" ctrlrange="-30.0 30.0" ctrllimited="true" />
         <motor joint="ankle_4" ctrlrange="-30.0 30.0" ctrllimited="true" />

@@ -79,8 +79,10 @@ class Ant(base.Task):
         
     def initialize_episode(self, physics):
         spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
-        #x_pos, y_pos = self.random.uniform(-spawn_radius, spawn_radius, size=(2,))
-        x_pos, y_pos, z_pos = -12, -12, 0
+        start_choices = [(-12, -12), (-12, 12), (12, -12)]
+        idx = np.random.randint(len(start_choices))
+        x_pos, y_pos = start_choices[idx]
+        z_pos = 0
         num_contacts = 1
         while num_contacts > 0:
             try:
@@ -101,7 +103,7 @@ class Ant(base.Task):
         return obs
 
     def get_reward(self, physics):
-        floor_max_distance = physics.named.model.geom_size['floor', 0] * np.sqrt(2)
+        floor_max_distance = physics.named.model.geom_size['floor', 0] * np.sqrt(2) * 2
         target_radius = physics.named.model.site_size['target', 0]
         reach_reward = rewards.tolerance(
             physics.self_to_target_distance(),
