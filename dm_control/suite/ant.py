@@ -79,9 +79,7 @@ class Ant(base.Task):
         
     def initialize_episode(self, physics):
         spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
-        start_choices = [(-12, -12), (-12, 12), (12, -12)]
-        idx = np.random.randint(len(start_choices))
-        x_pos, y_pos = start_choices[idx]
+        x_pos, y_pos = np.random.uniform(-12, -8, size=(2,))
         z_pos = 0
         num_contacts = 1
         while num_contacts > 0:
