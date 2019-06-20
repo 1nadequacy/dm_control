@@ -32,6 +32,7 @@ from dm_control.utils import xml_tools
 from lxml import etree
 import numpy as np
 from scipy import ndimage
+from enum import Enum
 
 enums = mjbindings.enums
 mjlib = mjbindings.mjlib
@@ -48,11 +49,17 @@ def make_model(num_walls=0):
     return etree.tostring(mjcf, pretty_print=True)
 
 
-@SUITE.add()
-def reach(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+class InitStrategy(Enum):
+    Uniform = 1
+    BottomLeft = 2
+    BottomRight = 3
+    UpperLeft = 4
+
+    
+def _create_reach(init_strategy, time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
     xml_string = make_model(num_walls=0)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
-    task = Ant(random=random)
+    task = Ant(init_strategy, random=random)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(
         physics,
@@ -60,6 +67,25 @@ def reach(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
         time_limit=time_limit,
         n_sub_steps=5,
         **environment_kwargs)
+
+
+@SUITE.add()
+def reach(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    return _create_reach(InitStrategy.Uniform, time_limit, random, environment_kwargs)
+
+
+@SUITE.add()
+def reach_bl(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    return _create_reach(InitStrategy.BottomLeft, time_limit, random, environment_kwargs)
+
+@SUITE.add()
+def reach_br(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    return _create_reach(InitStrategy.BottomRight, time_limit, random, environment_kwargs)
+
+
+@SUITE.add()
+def reach_ul(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    return _create_reach(InitStrategy.UpperLeft, time_limit, random, environment_kwargs)
 
 
 class Physics(mujoco.Physics):
@@ -74,12 +100,24 @@ class Physics(mujoco.Physics):
     
     
 class Ant(base.Task):
-    def __init__(self, random=None):
+    def __init__(self, init_strategy, random=None):
         super(Ant, self).__init__(random=random)
+        self.init_strategy = init_strategy
         
     def initialize_episode(self, physics):
-        spawn_radius = 0.9 * physics.named.model.geom_size['floor', 0]
+        size = physics.named.model.geom_size['floor', 0]
+        spawn_radius = 0.9 * size
         x_pos, y_pos = np.random.uniform(-spawn_radius, spawn_radius, size=(2,))
+        if self.init_strategy == InitStrategy.BottomLeft:
+            x_pos = 0.5 * x_pos - 0.5 * size
+            y_pos = 0.5 * y_pos - 0.5 * size
+        elif self.init_strategy == InitStrategy.BottomRight:
+            x_pos = 0.5 * x_pos + 0.5 * size
+            y_pos = 0.5 * y_pos - 0.5 * size
+        elif self.init_strategy == InitStrategy.UpperLeft:
+            x_pos = 0.5 * x_pos - 0.5 * size
+            y_pos = 0.5 * y_pos + 0.5 * size
+            
         z_pos = 0
         num_contacts = 1
         while num_contacts > 0:
