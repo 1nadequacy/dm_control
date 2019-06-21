@@ -171,7 +171,7 @@ class Ant(base.Task):
             value_at_margin=0)
 
         if self.upright_reward:
-            deviation = np.cos(np.deg2rad(deviation_angle))
+            deviation = np.cos(np.deg2rad(0.))
             upright_reward = rewards.tolerance(
                 physics.torso_upright(),
                 bounds=(deviation, float('inf')),
