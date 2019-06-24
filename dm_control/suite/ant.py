@@ -65,7 +65,8 @@ def _create_reach(init_strategy,
     environment_kwargs = environment_kwargs or {}
     n_sub_steps = environment_kwargs.pop('n_sub_steps', 5)
     upright_reward = environment_kwargs.pop('upright_reward', False)
-    task = Ant(init_strategy, upright_reward=upright_reward, random=random)
+    no_velocity = environment_kwargs.pop('no_velocity', False)
+    task = Ant(init_strategy, upright_reward=upright_reward, no_velocity=no_velocity, random=random)
 
     return control.Environment(
         physics,
@@ -119,10 +120,11 @@ class Physics(mujoco.Physics):
 
 
 class Ant(base.Task):
-    def __init__(self, init_strategy, upright_reward=False, random=None):
+    def __init__(self, init_strategy, upright_reward=False, no_velocity=False, random=None):
         super(Ant, self).__init__(random=random)
         self.init_strategy = init_strategy
         self.upright_reward = upright_reward
+        self.no_velocity = no_velocity
 
     def initialize_episode(self, physics):
         size = physics.named.model.geom_size['floor', 0]
@@ -156,7 +158,8 @@ class Ant(base.Task):
     def get_observation(self, physics):
         obs = collections.OrderedDict()
         obs['position'] = physics.position()
-        obs['velocity'] = physics.velocity()
+        if not self.no_velocity:
+            obs['velocity'] = physics.velocity()
         return obs
 
     def get_reward(self, physics):
