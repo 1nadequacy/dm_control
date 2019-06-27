@@ -41,32 +41,35 @@ _DEFAULT_TIME_LIMIT = 100
 SUITE = containers.TaggedTasks()
 
 
-def make_model(num_walls=0):
+def generate_valid_pos(lower_bound=1., upper_boud=14.):
+    position = np.random.uniform(lower_bound, upper_boud, size=(2, ))
+    sign = np.random.randint(0, 2, size=(2, )) * 2 - 1
+    return position * sign
+
+
+def make_model(num_walls=0, random_goal=False):
     xml_string = common.read_model('ant.xml')
     parser = etree.XMLParser(remove_blank_text=True)
     mjcf = etree.XML(xml_string, parser)
 
+    if random_goal:
+        target_site = xml_tools.find_element(mjcf, 'site', 'target')
+        x, y = generate_valid_pos()
+        target_site.attrib['pos'] = '{} {} .05'.format(x, y)
+
     return etree.tostring(mjcf, pretty_print=True)
 
 
-class InitStrategy(Enum):
-    Uniform = 1
-    BottomLeft = 2
-    BottomRight = 3
-    UpperLeft = 4
-
-
-def _create_reach(init_strategy,
+def _create_reach(sparse=False,
+                  with_goal=False,
                   time_limit=_DEFAULT_TIME_LIMIT,
                   random=None,
                   environment_kwargs=None):
-    xml_string = make_model(num_walls=0)
+    xml_string = make_model(num_walls=0, random_goal=with_goal)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     environment_kwargs = environment_kwargs or {}
     n_sub_steps = environment_kwargs.pop('n_sub_steps', 5)
-    upright_reward = environment_kwargs.pop('upright_reward', False)
-    no_velocity = environment_kwargs.pop('no_velocity', False)
-    task = Ant(init_strategy, upright_reward=upright_reward, no_velocity=no_velocity, random=random)
+    task = Ant(sparse=sparse, with_goal=with_goal, random=random)
 
     return control.Environment(
         physics,
@@ -79,32 +82,28 @@ def _create_reach(init_strategy,
 @SUITE.add()
 def reach(time_limit=_DEFAULT_TIME_LIMIT, random=None,
           environment_kwargs=None):
-    return _create_reach(InitStrategy.Uniform, time_limit, random,
-                         environment_kwargs)
+    return _create_reach(False, False, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
-def reach_bl(time_limit=_DEFAULT_TIME_LIMIT,
-             random=None,
-             environment_kwargs=None):
-    return _create_reach(InitStrategy.BottomLeft, time_limit, random,
-                         environment_kwargs)
+def reach_random(time_limit=_DEFAULT_TIME_LIMIT,
+                 random=None,
+                 environment_kwargs=None):
+    return _create_reach(False, True, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
-def reach_br(time_limit=_DEFAULT_TIME_LIMIT,
-             random=None,
-             environment_kwargs=None):
-    return _create_reach(InitStrategy.BottomRight, time_limit, random,
-                         environment_kwargs)
+def reach_sparse(time_limit=_DEFAULT_TIME_LIMIT,
+                 random=None,
+                 environment_kwargs=None):
+    return _create_reach(True, False, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
-def reach_ul(time_limit=_DEFAULT_TIME_LIMIT,
-             random=None,
-             environment_kwargs=None):
-    return _create_reach(InitStrategy.UpperLeft, time_limit, random,
-                         environment_kwargs)
+def reach_random_sparse(time_limit=_DEFAULT_TIME_LIMIT,
+                        random=None,
+                        environment_kwargs=None):
+    return _create_reach(True, True, time_limit, random, environment_kwargs)
 
 
 class Physics(mujoco.Physics):
@@ -115,32 +114,21 @@ class Physics(mujoco.Physics):
         return self.named.data.site_xpos['target'] - self.named.data.xpos[
             'torso']
 
+    def target_position(self):
+        return self.named.data.site_xpos['target']
+
     def self_to_target_distance(self):
         return np.linalg.norm(self.self_to_target()[:2])
 
 
 class Ant(base.Task):
-    def __init__(self, init_strategy, upright_reward=False, no_velocity=False, random=None):
+    def __init__(self, sparse=False, with_goal=False, random=None):
         super(Ant, self).__init__(random=random)
-        self.init_strategy = init_strategy
-        self.upright_reward = upright_reward
-        self.no_velocity = no_velocity
+        self.sparse = sparse
+        self.with_goal = with_goal
 
     def initialize_episode(self, physics):
-        size = physics.named.model.geom_size['floor', 0]
-        spawn_radius = 0.9 * size
-        x_pos, y_pos = np.random.uniform(
-            -spawn_radius, spawn_radius, size=(2, ))
-        if self.init_strategy == InitStrategy.BottomLeft:
-            x_pos = 0.5 * x_pos - 0.5 * size
-            y_pos = 0.5 * y_pos - 0.5 * size
-        elif self.init_strategy == InitStrategy.BottomRight:
-            x_pos = 0.5 * x_pos + 0.5 * size
-            y_pos = 0.5 * y_pos - 0.5 * size
-        elif self.init_strategy == InitStrategy.UpperLeft:
-            x_pos = 0.5 * x_pos - 0.5 * size
-            y_pos = 0.5 * y_pos + 0.5 * size
-
+        x_pos, y_pos = generate_valid_pos()
         z_pos = 0
         num_contacts = 1
         while num_contacts > 0:
@@ -158,30 +146,24 @@ class Ant(base.Task):
     def get_observation(self, physics):
         obs = collections.OrderedDict()
         obs['position'] = physics.position()
-        if not self.no_velocity:
-            obs['velocity'] = physics.velocity()
+        obs['velocity'] = physics.velocity()
+        if self.with_goal:
+            obs['target'] = physics.target_position()
         return obs
 
     def get_reward(self, physics):
-        floor_max_distance = physics.named.model.geom_size['floor',
-                                                           0] * np.sqrt(2) * 2
+        floor_radius = physics.named.model.geom_size['floor', 0] * np.sqrt(
+            2) * 2
         target_radius = physics.named.model.site_size['target', 0]
+        torso_radius = physics.named.model.geom_size['torso_geom', 0]
+        margin = (
+            target_radius + torso_radius) if self.sparse else floor_radius
+
         reach_reward = rewards.tolerance(
             physics.self_to_target_distance(),
             bounds=(0, target_radius),
             sigmoid='linear',
-            margin=floor_max_distance,
+            margin=margin,
             value_at_margin=0)
-
-        if self.upright_reward:
-            deviation = np.cos(np.deg2rad(0.))
-            upright_reward = rewards.tolerance(
-                physics.torso_upright(),
-                bounds=(deviation, float('inf')),
-                sigmoid='linear',
-                margin=1 + deviation,
-                value_at_margin=0)
-
-            return upright_reward * reach_reward
 
         return reach_reward
