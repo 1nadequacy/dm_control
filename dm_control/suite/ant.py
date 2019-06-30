@@ -47,15 +47,10 @@ def generate_valid_pos(lower_bound=1., upper_boud=14.):
     return position * sign
 
 
-def make_model(num_walls=0, random_goal=False):
+def make_model(num_walls=0):
     xml_string = common.read_model('ant.xml')
     parser = etree.XMLParser(remove_blank_text=True)
     mjcf = etree.XML(xml_string, parser)
-
-    if random_goal:
-        target_site = xml_tools.find_element(mjcf, 'site', 'target')
-        x, y = generate_valid_pos()
-        target_site.attrib['pos'] = '{} {} .05'.format(x, y)
 
     return etree.tostring(mjcf, pretty_print=True)
 
@@ -65,7 +60,7 @@ def _create_reach(sparse=False,
                   time_limit=_DEFAULT_TIME_LIMIT,
                   random=None,
                   environment_kwargs=None):
-    xml_string = make_model(num_walls=0, random_goal=with_goal)
+    xml_string = make_model(num_walls=0)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     environment_kwargs = environment_kwargs or {}
     n_sub_steps = environment_kwargs.pop('n_sub_steps', 5)
@@ -126,8 +121,15 @@ class Ant(base.Task):
         super(Ant, self).__init__(random=random)
         self.sparse = sparse
         self.with_goal = with_goal
-
-    def initialize_episode(self, physics):
+        
+    def _initialize_target(self, physics):
+        if self.with_goal:
+            x_pos, y_pos = generate_valid_pos()
+            physics.named.model.site_pos['target'][:2] = x_pos, y_pos
+                
+        return physics
+    
+    def _initialize_position(self, physics):
         x_pos, y_pos = generate_valid_pos()
         z_pos = 0
         num_contacts = 1
@@ -141,6 +143,15 @@ class Ant(base.Task):
                 pass
             num_contacts = physics.data.ncon
             z_pos += 0.01
+            
+        return physics
+        
+
+    def initialize_episode(self, physics):
+        
+        physics = self._initialize_position(physics)
+        physics = self._initialize_target(physics)
+        
         super(Ant, self).initialize_episode(physics)
 
     def get_observation(self, physics):
