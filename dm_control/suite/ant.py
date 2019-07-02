@@ -38,6 +38,8 @@ enums = mjbindings.enums
 mjlib = mjbindings.mjlib
 
 _DEFAULT_TIME_LIMIT = 100
+_WALLS = ['wall_tpy', 'wall_tny', 'wall_tpx', 'wall_tnx', 'wall_center_x', 'wall_center_y']
+
 SUITE = containers.TaggedTasks()
 
 
@@ -47,20 +49,26 @@ def generate_valid_pos(lower_bound=1., upper_boud=14.):
     return position * sign
 
 
-def make_model(num_walls=0):
+def make_model(no_walls=False):
     xml_string = common.read_model('ant.xml')
     parser = etree.XMLParser(remove_blank_text=True)
     mjcf = etree.XML(xml_string, parser)
-
+    
+    if no_walls:
+        for wall in _WALLS:
+            wall_geom = xml_tools.find_element(mjcf, 'geom', wall)
+            wall_geom.getparent().remove(wall_geom)
+            
     return etree.tostring(mjcf, pretty_print=True)
 
 
 def _create_reach(sparse=False,
                   with_goal=False,
+                  no_walls=False,
                   time_limit=_DEFAULT_TIME_LIMIT,
                   random=None,
                   environment_kwargs=None):
-    xml_string = make_model(num_walls=0)
+    xml_string = make_model(no_walls=no_walls)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     environment_kwargs = environment_kwargs or {}
     n_sub_steps = environment_kwargs.pop('n_sub_steps', 5)
@@ -77,28 +85,41 @@ def _create_reach(sparse=False,
 @SUITE.add()
 def reach(time_limit=_DEFAULT_TIME_LIMIT, random=None,
           environment_kwargs=None):
-    return _create_reach(False, False, time_limit, random, environment_kwargs)
+    return _create_reach(False, False, False, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
 def reach_random(time_limit=_DEFAULT_TIME_LIMIT,
                  random=None,
                  environment_kwargs=None):
-    return _create_reach(False, True, time_limit, random, environment_kwargs)
+    return _create_reach(False, True, False, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
 def reach_sparse(time_limit=_DEFAULT_TIME_LIMIT,
                  random=None,
                  environment_kwargs=None):
-    return _create_reach(True, False, time_limit, random, environment_kwargs)
+    return _create_reach(True, False, False, time_limit, random, environment_kwargs)
 
 
 @SUITE.add()
 def reach_random_sparse(time_limit=_DEFAULT_TIME_LIMIT,
                         random=None,
                         environment_kwargs=None):
-    return _create_reach(True, True, time_limit, random, environment_kwargs)
+    return _create_reach(True, True, False, time_limit, random, environment_kwargs)
+
+
+@SUITE.add()
+def reach_nowall(time_limit=_DEFAULT_TIME_LIMIT, random=None,
+          environment_kwargs=None):
+    return _create_reach(False, False, True, time_limit, random, environment_kwargs)
+
+
+@SUITE.add()
+def reach_random_nowall(time_limit=_DEFAULT_TIME_LIMIT,
+                 random=None,
+                 environment_kwargs=None):
+    return _create_reach(False, True, True, time_limit, random, environment_kwargs)
 
 
 class Physics(mujoco.Physics):
